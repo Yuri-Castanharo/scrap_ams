@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Chegadas e Saídas - GRU</title>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+      background: #f4f4f4;
+    }
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5em;
+      z-index: 1000;
+    }
+    h2 {
+      margin-top: 40px;
+    }
+    table {
+      width: 100%;
+      margin-bottom: 50px;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">Carregando tabelas...</div>
+  <h1>Chegadas e Saídas - Aeroporto de Guarulhos (GRU)</h1>
+
+  <h2>Chegadas</h2>
+  <table id="chegadas" class="display" style="width: 100%">
+    <thead><tr></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Saídas</h2>
+  <table id="saidas" class="display" style="width: 100%">
+    <thead><tr></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+  <script>
+    function sanitizeKey(key) {
+      return key.replace(/\./g, '_');
+    }
+
+    async function carregarTabelaDinamica(id, url) {
+      const response = await fetch(url);
+      const dados = await response.json();
+      if (!dados || dados.length === 0) return;
+
+      const origCols = Array.from(new Set(dados.flatMap(row => Object.keys(row))));
+      const safeCols = origCols.map(c => sanitizeKey(c));
+
+      const dadosNorm = dados.map(row => {
+        const obj = {};
+        origCols.forEach((c,i) => {
+          obj[safeCols[i]] = row[c] != null ? row[c] : '';
+        });
+        return obj;
+      });
+
+      const colsDef = origCols.map((c,i) => ({
+        title: c,
+        data: safeCols[i]
+      }));
+
+      const thead = document.querySelector(`#${id} thead tr`);
+      thead.innerHTML = '';
+      colsDef.forEach(col => {
+        const th = document.createElement('th');
+        th.textContent = col.title;
+        thead.appendChild(th);
+      });
+
+      $(`#${id}`).DataTable({
+        data: dadosNorm,
+        columns: colsDef,
+        destroy: true,
+        scrollX: true,
+        scrollY: '400px',
+        scrollCollapse: true,
+        paging: false,
+        order: [[0,'asc']]
+      });
+      window.loaded[id] = true;
+      window.checkDone();
+    }
+
+    $(document).ready(function() {
+      window.loaded = { chegadas: false, saidas: false };
+      window.checkDone = function() {
+        if (loaded.chegadas && loaded.saidas) {
+          $('#loading').hide();
+        }
+      };
+      carregarTabelaDinamica('chegadas','/api/chegadas');
+      carregarTabelaDinamica('saidas','/api/saidas');
+    });
+  </script>
+</body>
+</html>
