@@ -3,150 +3,219 @@
 <head>
   <meta charset="UTF-8">
   <title>Chegadas e Saídas - GRU (Real-time)</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
   <style>
     /* Add or modify these styles */
-    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; /* Prevent body scroll, manage scrolling in table containers */ }
-    body { font-family: sans-serif; background-color: #f4f4f4; display: flex; flex-direction: column; }
-    .top-bar { background-color: #333; color: white; text-align: center; padding: 10px 0; /* Removed margin-bottom to allow flex to control spacing */ }
-    .top-bar h1 { margin: 0; font-size: 1.8em; }
-    .tab-container { overflow: hidden; border-bottom: 1px solid #ccc; background-color: #fff; margin: 10px 10px 0 10px; /* Adjusted margins */ flex-shrink: 0; } /* Prevent tabs from shrinking */
-    .tab-button { background-color: #f1f1f1; float: left; border: none; outline: none; cursor: pointer; padding: 14px 16px; transition: 0.3s; font-size: 17px; }
-    .tab-button:hover { background-color: #ddd; }
-    .tab-button.active { background-color: #ccc; }
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+    body { height: 100vh; min-height: 100vh; display: flex; flex-direction: column; font-family: system-ui, Arial, sans-serif; background: #f8f9fa; color: #222; }
+    .container-fluid { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; height: 100%; }
+    .top-bar { background: #0d6efd; color: #fff; text-align: center; padding: 12px 0; }
+    .top-bar h1 { margin: 0; font-size: 1.7em; font-weight: 600; letter-spacing: 0.5px; }
+    .tab-container { border-bottom: 1px solid #dee2e6; background: #fff; margin: 0 0 8px 0; display: flex; align-items: center; justify-content: space-between; }
+    .tab-button { border: none; background: none; color: #0d6efd; font-weight: 600; padding: 16px 28px; font-size: 1.25em; border-radius: 0; }
+    .tab-button.active, .tab-button:focus { background: #e9ecef; color: #0d6efd; border-bottom: 2.5px solid #0d6efd; }
+    .tab-button:hover { background: #f1f3f5; color: #0a58ca; }
+    .search-bar { display: flex; align-items: center; gap: 8px; margin-right: 12px; }
+    .search-bar label { color: #0d6efd; font-weight: 500; margin-bottom: 0; }
+    .search-bar input { max-width: 260px; }
+    .tab-content-wrapper { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; height: 100%; }
+    .tab-content { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; height: 100%; }
+    .mb-2 label { color: #0d6efd; font-weight: 500; }
+    .form-control { background: #fff; color: #222; border: 1px solid #ced4da; border-radius: 4px; }
+    .form-control:focus { border-color: #0d6efd; box-shadow: 0 0 0 2px #b6d4fe; }
+    .table-container { flex: 1 1 auto; min-height: 0; height: 100%; max-height: 100%; overflow-y: auto; border: 1px solid #dee2e6; position: relative; scroll-behavior: smooth; }
+    .virtual-row { height: 38px; } /* altura média de uma linha da tabela */
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #dee2e6; padding: 8px; text-align: left; white-space: nowrap; font-size: 1em; }
+    th { background: #e9ecef; color: #0d6efd; font-weight: 600; position: sticky; top: 0; z-index: 1; }
+    tr:nth-child(even) { background: #f8f9fa; }
+    tr:hover { background: #e2e6ea; }
+    h2 { margin-top: 0; color: #0d6efd; font-size: 1.2em; font-weight: 600; }
+    @media (max-width: 900px) {
+      .top-bar h1 { font-size: 1.1rem; }
+      th, td { font-size: 0.95em; }
+    }
 
-    .tab-content-wrapper { /* New wrapper for tab content and pagination */
-      flex-grow: 1; /* Allows this wrapper to fill available vertical space */
+    .spinner-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255,255,255,0.7);
+      z-index: 9999;
       display: flex;
-      flex-direction: column;
-      margin: 0 10px 10px 10px; /* Consistent margin */
-      background-color: #fff;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      overflow: hidden; /* Important for managing internal scrolling */
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.2s;
     }
+    .spinner-border { width: 3rem; height: 3rem; color: #0d6efd; }
 
-    .tab-content {
-      display: none;
-      padding: 6px 12px;
-      border-top: none;
-      animation: fadeEffect 0.5s;
-      flex-grow: 1; /* Allows tab-content to fill space within wrapper */
-      overflow-y: auto; /* Vertical scroll for content within the tab */
-      display: flex; /* Added to make table container flex */
-      flex-direction: column; /* Stack h2 and table vertically */
+    .highlight-blink {
+      animation: blinkYellow 1s linear infinite;
+      background: #fff3cd !important;
     }
+    @keyframes blinkYellow {
+      0%, 100% { background: #fff3cd; }
+      50% { background: #ffe066; }
+    }
+    @keyframes blink-yellow {
+      0%, 100% { background-color: #fffbe6; }
+      50% { background-color: #ffe066; }
+    }
+    .tr-blink { animation: blink-yellow 1s steps(2, start) 30; }
+    th:nth-child(1), td:nth-child(1) { min-width: 120px; max-width: 200px; width: 160px; } /* Coluna ID VOO mais larga */
+        th:nth-child(4), td:nth-child(4) { min-width: 120px; max-width: 200px; width: 160px; } /* Coluna ID VOO mais larga */
+    th:nth-child(11), td:nth-child(11) { min-width: 120px; max-width: 200px; width: 160px; } /* Coluna ID VOO mais larga */
 
-    @keyframes fadeEffect { from {opacity: 0;} to {opacity: 1;} }
-
-    .table-container { /* New wrapper for the table itself to handle scrolling */
-      overflow-x: auto; /* Horizontal scroll for the table */
-      overflow-y: auto; /* Vertical scroll for the table body primarily */
-      flex-grow: 1; /* Allows table container to fill space */
-      margin-top: 10px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      /* margin-top: 10px; Removed, as .table-container handles spacing */
-    }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; white-space: nowrap; /* Prevent text wrapping in cells */ }
-    th { background-color: #e9e9e9; position: sticky; top: 0; z-index: 1; /* Sticky headers */}
-
-    #loadingIndicator { text-align: center; padding: 20px; font-size: 18px; display: block; margin: 20px; flex-shrink: 0; }
-    h2 { margin-top: 0; padding-top: 5px; color: #333; flex-shrink: 0; }
-
-    .pagination-controls {
-      padding: 10px;
-      text-align: center;
-      border-top: 1px solid #eee;
-      flex-shrink: 0; /* Prevent pagination from shrinking */
-    }
-    .pagination-controls button {
-      padding: 8px 16px;
-      margin: 0 5px;
-      cursor: pointer;
-      border: 1px solid #ddd;
-      background-color: #f9f9f9;
-    }
-    .pagination-controls button:disabled {
-      cursor: not-allowed;
-      opacity: 0.5;
-    }
-    .pagination-controls span {
-      margin: 0 10px;
-    }
-  </style>
+</style>
 </head>
-<body>
-
-  <div class="top-bar">
-    <h1>Chegadas e Saídas - Aeroporto de Guarulhos (GRU)</h1>
-  </div>
-
-  <div class="tab-container">
-    <button class="tab-button active" onclick="openTab(event, 'chegadasTab')">Chegadas</button>
-    <button class="tab-button" onclick="openTab(event, 'saidasTab')">Saídas</button>
-  </div>
-
-  <div id="loadingIndicator">Carregando dados...</div>
-
-  <div class="tab-content-wrapper" id="chegadasWrapper" style="display:flex;"> <!-- New wrapper, initially visible -->
-    <div id="chegadasTab" class="tab-content" style="display:flex;"> <!-- Ensure inner tab is also flex -->
-      <h2>Chegadas</h2>
-      <div class="table-container"> <!-- New table container -->
-        <table id="chegadasTable">
-          <thead></thead>
-          <tbody></tbody>
-        </table>
+<body class="bg-dark text-light">
+    <div id="spinnerOverlay" class="spinner-overlay" style="display:none;">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Carregando...</span>
       </div>
     </div>
-    <div class="pagination-controls" id="chegadasPagination">
-      <button onclick="prevPage('chegadas')">Anterior</button>
-      <span id="chegadasPageInfo">Página 1 de 1</span>
-      <button onclick="nextPage('chegadas')">Próxima</button>
-    </div>
-  </div>
 
-  <div class="tab-content-wrapper" id="saidasWrapper" style="display:none;"> <!-- Initially hidden -->
-    <div id="saidasTab" class="tab-content" style="display:flex;"> <!-- Ensure inner tab is also flex -->
-      <h2>Saídas</h2>
-      <div class="table-container">
-        <table id="saidasTable">
-          <thead></thead>
-          <tbody></tbody>
-        </table>
+  <div class="top-bar bg-primary text-white py-3 mb-3 shadow">
+    <h1 class="display-5 fw-bold mb-0">Chegadas e Saídas - Aeroporto de Guarulhos (GRU)</h1>
+  </div>
+  <div class="container-fluid">
+    <div class="tab-container d-flex border-bottom bg-light mb-2">
+      <div>
+        <button class="tab-button btn btn-outline-primary me-2 active" onclick="openTab(event, 'chegadasTab')">Chegadas</button>
+        <button class="tab-button btn btn-outline-primary" onclick="openTab(event, 'saidasTab')">Saídas</button>
+      </div>
+      <div class="search-bar" id="chegadasSearchBar">
+        <label for="chegadasSearch">Buscar:</label>
+        <input type="text" id="chegadasSearch" class="form-control form-control-sm" placeholder="Buscar nas chegadas..." oninput="searchTable('chegadas')">
       </div>
     </div>
-    <div class="pagination-controls" id="saidasPagination">
-      <button onclick="prevPage('saidas')">Anterior</button>
-      <span id="saidasPageInfo">Página 1 de 1</span>
-      <button onclick="nextPage('saidas')">Próxima</button>
+    <div class="tab-content-wrapper" id="chegadasWrapper" style="display:flex;">
+      <div id="chegadasTab" class="tab-content" style="display:flex; flex-direction:column;">
+        <div class="table-container border rounded" id="chegadasTableContainer">
+          <table id="chegadasTable" class="table table-hover table-striped align-middle mb-0">
+            <thead class="table-primary"></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
     </div>
-  </div>
 
-  <script>
-    const cabecalhosChegadas = {
-      'arrival.scheduledTime': 'Data/Hora Prev.',
-      'arrival.estimatedTime': 'Data/Hora Est.',
-      'flight.flightNumber': 'Voo',
-      'arrival.origin.name': 'Origem',
-      'arrival.origin.icao': 'Origem (ICAO)',
-      'arrival.status.name': 'Status',
-      'airline.name': 'Companhia Aérea',
-      'arrival.terminal': 'Terminal',
-      'arrival.gate': 'Portão'
+    <div class="tab-content-wrapper" id="saidasWrapper" style="display:none;">
+      <div id="saidasTab" class="tab-content" style="display:flex; flex-direction:column;">
+        <div class="table-container border rounded" id="saidasTableContainer">
+          <table id="saidasTable" class="table table-hover table-striped align-middle mb-0">
+            <thead class="table-primary"></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script>
+const cabecalhosChegadas = {
+    "arrival.flightid": "ID VOO",
+    "arrival.airlinedesignator.iata": "CIA AEREA IATA",
+    "arrival.airlinedesignator.icao": "CIA AEREA ICAO",
+    "aircraftregistration": "PREFIXO",
+    "arrival.flightnumber": "NUMERO VOO",
+    "arrival.customstype": "TIPO VOO",
+    "arrival.route.iata": "ORIGEM IATA",
+    "arrival.route.icao": "ORIGEM ICAO",
+    "arrival.scheduledtime": "CHEGADA PROGRAMADA",
+    "arrival.airportcode.iata": "BASE IATA",
+    "arrival.stand": "POSICAO",
+    "arrival.de--_estimatedarrival": "ETA",
+    "arrival.s---_remarkdescription": "DESCRICAO STATUS OPERACIONAL",
+    "arrival.il--_arrivingpax": "QTD PAX",
+    "arrival.s---_terminal": "TERMINAL",
+    "arrival.s---_alternateremark1": "OBSERVAÇÃO ALTERNATIVA",
+    "arrival.sr--_standnumber1": "POSICAO OPC 1",
+    "arrival.standnumber3": "POSICAO OPC 3",
+    "arrival.standnumber2": "POSICAO OPC 2",
+    "arrival.sh--_baggagehandler": "HANDLER",
+    "arrival.domesticconnectingpaxcia": "PAX CONEXAO DOM",
+    "arrival.internationalconnectingpaxcia": "PAX CONEXAO INTER",
+    "arrival.de--_estimatestand1onchock": "ESTIMADO CALCO POSICAO OPC 1",
+    "arrival.decl_temposolo_pos2": "TEMPO SOLO DECLARADO",
+    "arrival.primeira_origem_web": "PRIMEIRA ORIGEM WEB",
+    "arrival.sh--_ramphandler": "HANDLER",
+    "arrival.de--_arrivalstandonchock": "HORA DO CALÇO CHEGADA",
+    "arrival.d---_staytotaltimestand1": "TEMPO NA POSICAO OPC 1",
+    "arrival.de--_arrivalstandoffchock": "HORA DO CALÇO FORA CHEGADA",
+    "arrival.de--_actualarrival": "ATA",
+    "arrival.onchocktimeatstand2arr": "CALCO SAIDA POSICAO OPC 2 SAIDA",
+    "arrival.tempo_taxiamento": "TEMPO TAXI",
+    "arrival.de--_taxi": "INICIO DO TAXI",
+    "arrival.carousels": "ESTEIRA",
+    "arrival.il--_domesticspecialneedspax": "PAX NECESSIDADE ESPECIAL DOM",
+    "arrival.il--_internationalspecialneedspax": "PAX NECESSIDADE ESPECIAL INTER",
+    "arrival.dl--_internationalmailload": "CORREIO INTER",
+    "arrival.dl--_internationalcargoload": "CARGA INTER",
+    "arrival.ake_restituicao_bagagem": "AKE RESTITUICAO BAG",
+    "arrival.primeira_carreta_restituicao_bagagem": "PRIMEIRA CARRETA RESTITUICAO",
+    "arrival.ultima_carreta_restituicao_bagagem": "ULTIMA CARRETA RESTITUICAO",
+    "arrival.tempo_restituicao_bagagem": "TEMPO RESTITUICAO",
+    "arrival.de--_firstbagonclaim": "PRIMEIRA BAGAGEM ESTEIRA",
+    "arrival.de--_lastbagonclaim": "ULTIMA BAGAGEM ESTEIRA",
+    "arrival.tempo_restituicao_prim_bagagem": "TEMPO RESTITUICAO PRIMEIRA BAG",
+    "arrival.tempo_restituicao_ult_bagagem": "TEMPO RESTITUICAO ULTIMA BAG",
+    "arrival.tempo_duracao_reb1": "TEMPO REBOQUE 1",
+    "arrival.tempo_duracao_reb2": "TEMPO REBOQUE 2",
+    "arrival.dl--_domestictransitmailload": "CORREIO TRANSITO DOMESTICO",
+    "arrival.dl--_internationaltransitmailload": "CORREIO INTER TRANSITO",
+    "arrival.dl--_internationaltransitcargoload": "CARGA INTER TRANSITO",
+    "arrival.tempo_duracao_reb3": "TEMPO REBOQUE 3",
+    "arrival.dl--_domesticcargoload": "CARGA DOM",
+    "arrival.dl--_domesticmailload": "CORREIO DOM",
+    "arrival.tempo_duracao_reb4": "TEMPO REBOQUE 4",
+    "arrival.pnae_hora_solicitacao": "HORA SOLICITACAO PNAE",
+    "arrival.pnae_hr_equipposicao": "HORA EQUIPE POSICAO PNAE",
+    "arrival.pnae_fim_atendimento": "FIM ATENDIMENTO PNAE",
+    "arrival.pnae_equipamento": "EQUIPAMENTO ATEND. PNAE",
+    "arrival.pnae_inicio_atendimento": "INICIO ATENDIMENTO PNAE",
     };
 
     const cabecalhosSaidas = {
-      'departure.scheduledTime': 'Data/Hora Prev.',
-      'departure.estimatedTime': 'Data/Hora Est.',
-      'flight.flightNumber': 'Voo',
-      'departure.destination.name': 'Destino',
-      'departure.destination.icao': 'Destino (ICAO)',
-      'departure.status.name': 'Status',
-      'airline.name': 'Companhia Aérea',
-      'departure.terminal': 'Terminal',
-      'departure.gate': 'Portão'
+    "departure.flightid": "ID VOO",
+    "departure.airlinedesignator.iata": "CIA AEREA IATA",
+    "departure.airlinedesignator.icao": "CIA AERA ICAO",
+    "departure.flightnumber": "NUMERO VOO",
+    "aircraftregistration": "PREFIXO",
+    "departure.customstype": "TIPO DE VOO",
+    "departure.route.iata": "DESTINO IATA",
+    "departure.scheduledtime": "SAIDA PROGRAMADA",
+    "departure.airportcode.iata": "BASE IATA",
+    "departure.de--_estimateddeparture": "ETD",
+    "departure.s---_remarkdescription": "DESCRICAO STATUS OPERACIONAL",
+    "departure.s---_terminal": "TERMINAL",
+    "departure.il--_departingpax": "QTD PAX",
+    "departure.s---_alternateremark1": "OBSERVAÇÃO ALTERNATIVA",
+    "departure.domesticconnectingpaxcia": "PAX CONEXÃO DOMESTICA",
+    "departure.internationalconnectingpaxcia": "PAX CONEXÃO INTER",
+    "departure.decl_temposolodep_pos3": "TEMPO DE SOLO DECLARADO",
+    "departure.stand": "POSIÇÃO",
+    "departure.sr--_standnumber1": "POSICAO OPCAO 1",
+    "departure.sh--_ramphandler": "HANDLER",
+    "departure.sr--_standnumber2": "POSICAO OPCAO 2",
+    "departure.d---_staytotaltimestand1": "TEMPO NA POSICAO OPC 1",
+    "departure.de--_landedatdeparture": "HORARIO DE POUSO",
+    "departure.de--_onchockatdeparture": "HORARIO CALCO POUSO",
+    "departure.de--_actualdeparture": "ATD",
+    "departure.de--_departurestandoffchock": "CALÇOS FORA",
+    "departure.de--_taxi": "INICIO DO TAXI",
+    "departure.tempo_taxiamento": "TEMPO DE TAXIAMENTO",
+    "departure.stand_partida": "POSICAO DE SAIDA",
+    "departure.il--_internationalspecialneedspax": "PAX NECESSIDADE ESPECIAL INTER",
+    "departure.il--_domestictransitspecialneedspax": "PAX NECESSIDADE ESPECIAL DOM",
+    "departure.de--_towingrequest": "SOLICITACAO DE REBOQUE",
+    "departure.dl--_domesticmailload": "CORREIO DOM",
+    "departure.dl--_internationalmailload": "CORREIO INTER",
+    "departure.dl--_internationalcargoload": "CARGA INTER",
+    "departure.dl--_domesticcargoload": "CARGA DOM",
+    "departure.pnae_hora_solicitacao": "HORA SOLICITACAO PNAE",
+    "departure.pnae_hr_equipposicao": "HORA EQUIPE POSICAO PNAE",
+    "departure.pnae_hr_iniembarque": "INICIO EMBARQUE PNAE",
+    "departure.pnae_fim_atendimento": "FIM ATENDIMENTO PNAE",
     };
 
     const itemsPerPage = 25; // Or any other number you prefer
@@ -154,6 +223,11 @@
     let saidasCurrentPage = 1;
     let fullChegadasData = []; // To store all arrival data
     let fullSaidasData = [];   // To store all departure data
+
+    // Parâmetros para scroll infinito
+    const chunkSize = 50; // Quantidade de linhas por carregamento
+    let chegadasScrollIndex = 0;
+    let saidasScrollIndex = 0;
 
     function generateTableHeaders(tableId, headerMappings) {
       const table = document.getElementById(tableId);
@@ -222,137 +296,201 @@
     const chegadasTbody = document.getElementById('chegadasTable').getElementsByTagName('tbody')[0];
     const saidasTbody = document.getElementById('saidasTable').getElementsByTagName('tbody')[0];
 
-    // Modified updateTable to handle pagination
-    // The 'items' parameter will now be the FULL dataset for that type (arrivals/departures)
-    function updateTable(tbody, fullItems, type, headerMappings) {
-        let currentPage;
-        if (type === 'arrival') {
-            fullChegadasData = fullItems; // Store full dataset
-            currentPage = chegadasCurrentPage;
-        } else {
-            fullSaidasData = fullItems;   // Store full dataset
-            currentPage = saidasCurrentPage;
-        }
+    // Função para formatar datas no padrão DD/MM/YYYY - HH:MM:SS
+    function formatDateTimeBR(dateStr) {
+        if (!dateStr) return '';
+        // Tenta lidar com formatos ISO e outros
+        let d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr; // Se não for data válida, retorna original
+        let dia = String(d.getDate()).padStart(2, '0');
+        let mes = String(d.getMonth() + 1).padStart(2, '0');
+        let ano = d.getFullYear();
+        let hora = String(d.getHours()).padStart(2, '0');
+        let min = String(d.getMinutes()).padStart(2, '0');
+        let seg = String(d.getSeconds()).padStart(2, '0');
+        return `${dia}/${mes}/${ano} - ${hora}:${min}:${seg}`;
+    }
 
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const paginatedItems = fullItems.slice(startIndex, endIndex);
+    // Função para verificar se a data é do dia atual ou anterior
+    function isTodayOrYesterday(dateStr) {
+        if (!dateStr) return false;
+        let d = new Date(dateStr);
+        if (isNaN(d.getTime())) return false;
+        let now = new Date();
+        let today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        let yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        let dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        return dDay.getTime() === today.getTime() || dDay.getTime() === yesterday.getTime();
+    }
 
-        // Clear existing tbody content before adding new page's rows
+    // --- FILTRO DE JANELA DE 2 HORAS (HOJE) ---
+function isWithin2HoursWindow(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  // Só do mesmo dia
+  if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth() || d.getDate() !== now.getDate()) return false;
+  const diffMs = d.getTime() - now.getTime();
+  const diffH = diffMs / (1000 * 60 * 60);
+  return diffH >= -2 && diffH <= 2;
+}
+
+// Atualiza função de filtro/sort para usar a janela de 2h
+function getFilteredSortedData(type) {
+  const data = type === 'arrival' ? fullChegadasData : fullSaidasData;
+  const key = type === 'arrival' ? 'arrival.scheduledtime' : 'departure.scheduledtime';
+  let filtered = data.filter(item => isWithin2HoursWindow(item[key]));
+  // Ordena por horário programado
+  filtered = filtered.slice().sort((a, b) => {
+    const aTime = a[key] || '';
+    const bTime = b[key] || '';
+    return aTime.localeCompare(bTime);
+  });
+  return filtered;
+}
+
+    function clearTable(tbody) {
         tbody.innerHTML = '';
+    }
 
-        // --- Beginning of adapted row creation logic ---
-        if (!paginatedItems || !headerMappings) return;
-
-        paginatedItems.forEach(item => {
-            // Using common keys, assuming server provides them or they are in headerMappings
-            // For rowId, it's good to have a stable unique identifier.
-            // If 'flight.flightNumber' and scheduledTime are not unique enough,
-            // the server should provide a truly unique ID for each flight record.
+    function renderChunk(tbody, data, headerMappings, start, end) {
+        // Lista de colunas que são datas/horários
+        const dateCols = Object.keys(headerMappings).filter(k => k.match(/time|date|hora|hr|atd|ata|etd|eta|fim|inicio|start|end|onchock|offchock|calco|po|saida|chegada|embarque|solicitacao|request|claim|baggage|bagagem|restituicao|taxi|stand|posicao|posicao|terminal|landed/i));
+        for (let i = start; i < end && i < data.length; i++) {
+            const item = data[i];
             const flightIdKey = 'flight.flightNumber';
-            const scheduledTimeKey = (type === 'arrival' ? 'arrival.scheduledTime' : 'departure.scheduledTime');
-
+            const scheduledTimeKey = headerMappings['arrival.scheduledTime'] ? 'arrival.scheduledTime' : 'departure.scheduledTime';
             const flightId = item[flightIdKey] || 'N/A_Flight_' + Math.random().toString(36).substring(2, 11);
             const scheduledTime = item[scheduledTimeKey] || String(Date.now() + Math.random());
             const rowId = flightId + '_' + scheduledTime;
-
             let row = tbody.insertRow();
             row.dataset.id = rowId;
-
             for (const dataKey in headerMappings) {
                 if (headerMappings.hasOwnProperty(dataKey)) {
                     const cell = row.insertCell();
-                    const cellValue = item[dataKey];
-                    cell.textContent = cellValue !== undefined && cellValue !== null ? cellValue : 'N/A';
+                    let cellValue = item[dataKey];
+                    if (dateCols.includes(dataKey)) {
+                        cellValue = formatDateTimeBR(cellValue);
+                    }
+                    cell.textContent = cellValue !== undefined && cellValue !== null ? cellValue : '';
+                }
+            }
+        }
+    }
+
+    // --- SUBSTITUI TODAS AS CHAMADAS DE getSortedAndFilteredData POR getFilteredSortedData ---
+    // Atualiza todos os pontos de uso:
+
+    // 1. updateTableInfinite
+    function updateTableInfinite(tbody, type, headerMappings, reset = false) {
+        const filteredSorted = getFilteredSortedData(type);
+        let scrollIndex = type === 'arrival' ? chegadasScrollIndex : saidasScrollIndex;
+        if (reset) scrollIndex = 0;
+        if (reset) clearTable(tbody);
+        renderChunk(tbody, filteredSorted, headerMappings, scrollIndex, scrollIndex + chunkSize);
+        if (type === 'arrival') chegadasScrollIndex = scrollIndex + chunkSize;
+        else saidasScrollIndex = scrollIndex + chunkSize;
+    }
+
+    // 2. setupVirtualScroll
+    function setupVirtualScroll(containerId, tbody, type, headerMappings) {
+        const container = document.getElementById(containerId);
+        let lastStart = -1;
+        let lastEnd = -1;
+        let rafId = null;
+        const rowHeight = 38;
+        const buffer = 6;
+        function renderVirtualRows() {
+            const filteredSorted = getFilteredSortedData(type);
+            const totalRows = filteredSorted.length;
+            const visibleRows = Math.ceil(container.clientHeight / rowHeight);
+            const scrollTop = container.scrollTop;
+            const start = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
+            const end = Math.min(totalRows, start + visibleRows + 2 * buffer);
+            if (start === lastStart && end === lastEnd) return;
+            lastStart = start; lastEnd = end;
+            tbody.innerHTML = '';
+            if (start > 0) {
+                const spacer = document.createElement('tr');
+                spacer.style.height = (start * rowHeight) + 'px';
+                tbody.appendChild(spacer);
+            }
+            const dateCols = Object.keys(headerMappings).filter(k => k.match(/time|date|hora|hr|atd|ata|etd|eta|fim|inicio|start|end|onchock|offchock|calco|po|saida|chegada|embarque|solicitacao|request|claim|baggage|bagagem|restituicao|taxi|stand|posicao|posicao|terminal|landed/i));
+            for (let i = start; i < end; i++) {
+                const item = filteredSorted[i];
+                if (!item) continue;
+                const row = tbody.insertRow();
+                row.className = 'virtual-row';
+                for (const dataKey in headerMappings) {
+                    if (headerMappings.hasOwnProperty(dataKey)) {
+                        const cell = row.insertCell();
+                        let cellValue = item[dataKey];
+                        if (dateCols.includes(dataKey)) {
+                            cellValue = formatDateTimeBR(cellValue);
+                        }
+                        cell.textContent = cellValue !== undefined && cellValue !== null ? cellValue : '';
+                    }
+                }
+            }
+            if (end < totalRows) {
+                const spacer = document.createElement('tr');
+                spacer.style.height = ((totalRows - end) * rowHeight) + 'px';
+                tbody.appendChild(spacer);
+            }
+        }
+        function onScrollOrResize() {
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(renderVirtualRows);
+        }
+        container.removeEventListener('scroll', onScrollOrResize);
+        window.removeEventListener('resize', onScrollOrResize);
+        container.addEventListener('scroll', onScrollOrResize);
+        window.addEventListener('resize', onScrollOrResize);
+        renderVirtualRows();
+    }
+
+    // 3. updateTable
+    function updateTable(tbody, fullItems, type, headerMappings) {
+        let currentPage;
+        if (type === 'arrival') {
+            fullChegadasData = fullItems === fullChegadasData ? fullChegadasData : fullItems;
+            currentPage = chegadasCurrentPage;
+        } else {
+            fullSaidasData = fullItems === fullSaidasData ? fullSaidasData : fullItems;
+            currentPage = saidasCurrentPage;
+        }
+        const filteredSorted = getFilteredSortedData(type);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedItems = filteredSorted.slice(startIndex, endIndex);
+        tbody.innerHTML = '';
+        if (!paginatedItems || !headerMappings) return;
+        const dateCols = Object.keys(headerMappings).filter(k => k.match(/time|date|hora|hr|atd|ata|etd|eta|fim|inicio|start|end|onchock|offchock|calco|po|saida|chegada|embarque|solicitacao|request|claim|baggage|bagagem|restituicao|taxi|stand|posicao|posicao|terminal|landed/i));
+        paginatedItems.forEach(item => {
+            const flightIdKey = 'flight.flightNumber';
+            const scheduledTimeKey = (type === 'arrival' ? 'arrival.scheduledTime' : 'departure.scheduledTime');
+            const flightId = item[flightIdKey] || 'N/A_Flight_' + Math.random().toString(36).substring(2, 11);
+            const scheduledTime = item[scheduledTimeKey] || String(Date.now() + Math.random());
+            const rowId = flightId + '_' + scheduledTime;
+            let row = tbody.insertRow();
+            row.dataset.id = rowId;
+            for (const dataKey in headerMappings) {
+                if (headerMappings.hasOwnProperty(dataKey)) {
+                    const cell = row.insertCell();
+                    let cellValue = item[dataKey];
+                    if (dateCols.includes(dataKey)) {
+                        cellValue = formatDateTimeBR(cellValue);
+                    }
+                    cell.textContent = cellValue !== undefined && cellValue !== null ? cellValue : '';
                 }
             }
         });
-        // --- End of adapted row creation logic ---
+      }
 
-        updatePaginationControls(type); // New function to update buttons and page info
-    }
-
-    function updatePaginationControls(type) {
-        let currentPage;
-        let totalItems;
-        let pageInfoElemId;
-        let prevButton;
-        let nextButton;
-
-        if (type === 'arrival') {
-            currentPage = chegadasCurrentPage;
-            totalItems = fullChegadasData.length;
-            pageInfoElemId = 'chegadasPageInfo';
-            prevButton = document.querySelector('#chegadasPagination button[onclick*="prevPage"]');
-            nextButton = document.querySelector('#chegadasPagination button[onclick*="nextPage"]');
-        } else { // departure
-            currentPage = saidasCurrentPage;
-            totalItems = fullSaidasData.length;
-            pageInfoElemId = 'saidasPageInfo';
-            prevButton = document.querySelector('#saidasPagination button[onclick*="prevPage"]');
-            nextButton = document.querySelector('#saidasPagination button[onclick*="nextPage"]');
-        }
-
-        let totalPages = Math.ceil(totalItems / itemsPerPage);
-        totalPages = totalPages > 0 ? totalPages : 1; // Ensure totalPages is at least 1
-
-        document.getElementById(pageInfoElemId).textContent = `Página ${currentPage} de ${totalPages}`;
-
-        if (prevButton) prevButton.disabled = currentPage === 1;
-        if (nextButton) nextButton.disabled = currentPage === totalPages || totalItems === 0;
-    }
-
-    function nextPage(type) {
-        let totalItems;
-        let tbody;
-        let headerMap;
-        let currentFullData;
-
-        if (type === 'chegadas') {
-            totalItems = fullChegadasData.length;
-            if (chegadasCurrentPage < Math.ceil(totalItems / itemsPerPage)) {
-                chegadasCurrentPage++;
-                tbody = chegadasTbody;
-                headerMap = cabecalhosChegadas;
-                currentFullData = fullChegadasData;
-                updateTable(tbody, currentFullData, 'arrival', headerMap);
-            }
-        } else if (type === 'saidas') {
-            totalItems = fullSaidasData.length;
-            if (saidasCurrentPage < Math.ceil(totalItems / itemsPerPage)) {
-                saidasCurrentPage++;
-                tbody = saidasTbody;
-                headerMap = cabecalhosSaidas;
-                currentFullData = fullSaidasData;
-                updateTable(tbody, currentFullData, 'departure', headerMap);
-            }
-        }
-    }
-
-    function prevPage(type) {
-        let tbody;
-        let headerMap;
-        let currentFullData;
-
-        if (type === 'chegadas') {
-            if (chegadasCurrentPage > 1) {
-                chegadasCurrentPage--;
-                tbody = chegadasTbody;
-                headerMap = cabecalhosChegadas;
-                currentFullData = fullChegadasData;
-                updateTable(tbody, currentFullData, 'arrival', headerMap);
-            }
-        } else if (type === 'saidas') {
-            if (saidasCurrentPage > 1) {
-                saidasCurrentPage--;
-                tbody = saidasTbody;
-                headerMap = cabecalhosSaidas;
-                currentFullData = fullSaidasData;
-                updateTable(tbody, currentFullData, 'departure', headerMap);
-            }
-        }
-    }
-
+    // Remove paginação e use apenas scroll infinito
+    // Atualiza SSE para usar scroll infinito
     const evtSource = new EventSource('/api/data-stream');
 
     evtSource.onmessage = function(event) {
@@ -363,53 +501,215 @@
         console.error('Error parsing SSE data:', err, 'Raw data:', event.data);
         return;
       }
-
       if (loadingIndicator.style.display !== 'none') {
           loadingIndicator.style.display = 'none';
       }
-
       if (eventData.type === 'initialLoad' || eventData.type === 'update') {
         if (eventData.arrivals) {
-          chegadasCurrentPage = 1; // Reset to page 1 on new data
-          updateTable(chegadasTbody, eventData.arrivals, 'arrival', cabecalhosChegadas);
+          fullChegadasData = eventData.arrivals;
+          chegadasScrollIndex = 0;
+          updateTableInfinite(chegadasTbody, 'arrival', cabecalhosChegadas, true);
         }
         if (eventData.departures) {
-          saidasCurrentPage = 1; // Reset to page 1 on new data
-          updateTable(saidasTbody, eventData.departures, 'departure', cabecalhosSaidas);
+          fullSaidasData = eventData.departures;
+          saidasScrollIndex = 0;
+          updateTableInfinite(saidasTbody, 'departure', cabecalhosSaidas, true);
         }
       }
     };
 
-    evtSource.onerror = function(err) {
-      console.error("EventSource failed:", err);
-      if (loadingIndicator.style.display !== 'none') {
-          loadingIndicator.textContent = 'Erro ao conectar ao servidor de atualizações.';
-      }
-    };
+    // Função para mostrar/ocultar spinner
+function showSpinner(show) {
+  const spinner = document.getElementById('spinnerOverlay');
+  if (spinner) spinner.style.display = show ? 'flex' : 'none';
+}
 
-    // Set the default tab to be visible
-    // Make sure chegadasWrapper is flex and saidasWrapper is none
-    document.addEventListener('DOMContentLoaded', function() {
-        // Generate headers for both tables
-        generateTableHeaders('chegadasTable', cabecalhosChegadas);
-        generateTableHeaders('saidasTable', cabecalhosSaidas);
+// Exemplo de uso: mostrar spinner ao buscar dados
+// Mostra spinner antes de atualizar dados
+function fetchAndUpdateChegadas(data) {
+  showSpinner(true);
+  setTimeout(() => { // simula carregamento async
+    fullChegadasData = data;
+    setupVirtualScroll('chegadasTableContainer', chegadasTbody, 'arrival', cabecalhosChegadas);
+    showSpinner(false);
+  }, 300); // ajuste conforme necessário
+}
 
-        // Ensure correct display states for wrappers on load
-        document.getElementById('chegadasWrapper').style.display = 'flex';
-        document.getElementById('saidasWrapper').style.display = 'none';
+function fetchAndUpdateSaidas(data) {
+  showSpinner(true);
+  setTimeout(() => {
+    fullSaidasData = data;
+    setupVirtualScroll('saidasTableContainer', saidasTbody, 'departure', cabecalhosSaidas);
+    showSpinner(false);
+  }, 300);
+}
 
-        // Call openTab for the default tab to ensure button state and tab content visibility are correct
-        // Pass null for event as it's a programmatic call to prevent errors,
-        // and to correctly set the active button if needed.
-        // The 'active' class is already on the Chegadas button in HTML,
-        // so this call mainly ensures the correct tab content wrapper is displayed.
-        openTab(null, 'chegadasTab');
+// Altere o onmessage do SSE para usar o spinner
+if (typeof evtSource !== 'undefined') {
+  evtSource.onmessage = function(event) {
+    let eventData;
+    try {
+      eventData = JSON.parse(event.data);
+    } catch (err) {
+      console.error('Error parsing SSE data:', err, 'Raw data:', event.data);
+      return;
+    }
+    if (eventData.type === 'initialLoad' || eventData.type === 'update') {
+      if (eventData.arrivals) fetchAndUpdateChegadas(eventData.arrivals);
+      if (eventData.departures) fetchAndUpdateSaidas(eventData.departures);
+    }
+  };
+}
 
-        // Initialize pagination display for both tables
-        updatePaginationControls('arrival');
-        updatePaginationControls('departure');
-    });
+// Armazena dados exibidos e linhas destacadas
+let displayedArrivals = [];
+let displayedDepartures = [];
 
+// Função para comparar objetos (shallow)
+function isRowDifferent(a, b) {
+  if (!a || !b) return true;
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    if (a[k] !== b[k]) return true;
+  }
+  return false;
+}
+
+// --- HIGHLIGHTED ROWS LOGIC ---
+// Mantém um mapa de rows destacados e seus timeouts
+let highlightedRows = { arrival: {}, departure: {} };
+let highlightedTimeouts = { arrival: {}, departure: {} };
+
+// Sempre mantém os dados ordenados por horário programado
+function sortByScheduledTime(data, type) {
+  const key = type === 'arrival' ? 'arrival.scheduledtime' : 'departure.scheduledtime';
+  return data.slice().sort((a, b) => {
+    const aTime = a[key] || '';
+    const bTime = b[key] || '';
+    return aTime.localeCompare(bTime);
+  });
+}
+
+// Retorna o array para exibir: destacados no topo, resto ordenado
+function getDisplayData(type) {
+  const fullData = type === 'arrival' ? fullChegadasData : fullSaidasData;
+  const highlightedMap = highlightedRows[type];
+  const keyId = type === 'arrival' ? 'arrival.flightid' : 'departure.flightid';
+  const keySched = type === 'arrival' ? 'arrival.scheduledtime' : 'departure.scheduledtime';
+  // Ordena tudo por horário
+  const sorted = sortByScheduledTime(fullData, type);
+  // Se houver rows destacados, coloca no topo
+  const highlightedList = [];
+  const rest = [];
+  for (const row of sorted) {
+    const id = row[keyId] + '_' + row[keySched];
+    if (highlightedMap[id]) highlightedList.push(row);
+    else rest.push(row);
+  }
+  return [...highlightedList, ...rest];
+}
+
+// Atualiza e destaca linhas alteradas, mantendo ordenação
+function updateAndHighlight(type, newData, headerMappings, tbody, containerId) {
+  const keyId = type === 'arrival' ? 'arrival.flightid' : 'departure.flightid';
+  const keySched = type === 'arrival' ? 'arrival.scheduledtime' : 'departure.scheduledtime';
+  // Atualiza dados globais
+  if (type === 'arrival') fullChegadasData = newData.slice();
+  else fullSaidasData = newData.slice();
+  // Detecta alterados
+  const prevData = type === 'arrival' ? displayedArrivals : displayedDepartures;
+  const changed = [];
+  newData.forEach(row => {
+    const id = row[keyId] + '_' + row[keySched];
+    const old = prevData.find(r => (r[keyId] + '_' + r[keySched]) === id);
+    if (old && isRowDifferent(row, old)) changed.push({ row, id });
+  });
+  // Pisca apenas, sem mover
+  changed.forEach(({ id }) => {
+    highlightedRows[type][id] = true;
+    if (highlightedTimeouts[type][id]) clearTimeout(highlightedTimeouts[type][id]);
+    highlightedTimeouts[type][id] = setTimeout(() => {
+      highlightedRows[type][id] = false;
+      highlightedTimeouts[type][id] = null;
+      renderVirtualRows(type, getFilteredSortedData(type), headerMappings, tbody, containerId, highlightedRows[type]);
+    }, 30000);
+  });
+  // Atualiza exibidos
+  if (type === 'arrival') displayedArrivals = newData.slice();
+  else displayedDepartures = newData.slice();
+  // Renderiza
+  renderVirtualRows(type, getFilteredSortedData(type), headerMappings, tbody, containerId, highlightedRows[type]);
+}
+
+// Atualiza virtual scroll para usar getFilteredSortedData
+function setupVirtualScrollWithHighlight(containerId, tbody, type, headerMappings) {
+  const container = document.getElementById(containerId);
+  function onScroll() {
+    renderVirtualRows(type, getFilteredSortedData(type), headerMappings, tbody, containerId, highlightedRows[type]);
+  }
+  container.onscroll = null;
+  container.addEventListener('scroll', onScroll);
+  window.addEventListener('resize', onScroll);
+  onScroll();
+}
+
+// --- AJUSTE FRONTEND: JANELA DE 1 HORA E LINHA MAIS PRÓXIMA DO AGORA ---
+function isWithin1HourWindow(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth() || d.getDate() !== now.getDate()) return false;
+  const diffH = (d.getTime() - now.getTime()) / (1000 * 60 * 60);
+  return diffH >= -1 && diffH <= 1;
+}
+
+function getFilteredSortedData(type) {
+  const data = type === 'arrival' ? fullChegadasData : fullSaidasData;
+  const key = type === 'arrival' ? 'arrival.scheduledtime' : 'departure.scheduledtime';
+  let filtered = data.filter(item => isWithin1HourWindow(item[key]));
+  // Ordena por horário programado
+  filtered = filtered.slice().sort((a, b) => {
+    const aTime = a[key] || '';
+    const bTime = b[key] || '';
+    return aTime.localeCompare(bTime);
+  });
+  return filtered;
+}
+
+// Função para scrollar até a linha mais próxima do horário atual
+function scrollToClosestRow(type, containerId, headerMappings) {
+  const data = getFilteredSortedData(type);
+  const key = type === 'arrival' ? 'arrival.scheduledtime' : 'departure.scheduledtime';
+  const now = new Date();
+  let minDiff = Infinity;
+  let closestIdx = 0;
+  data.forEach((item, idx) => {
+    const d = new Date(item[key]);
+    if (isNaN(d.getTime())) return;
+    const diff = Math.abs(d.getTime() - now.getTime());
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestIdx = idx;
+    }
+  });
+  // Scrolla para a linha
+  const container = document.getElementById(containerId);
+  if (container) {
+    const rowHeight = 38;
+    container.scrollTop = Math.max(0, (closestIdx - 2) * rowHeight);
+  }
+}
+
+// Após renderização inicial, scrolla para o mais próximo
+setTimeout(() => {
+  scrollToClosestRow('arrival', 'chegadasTableContainer', cabecalhosChegadas);
+  scrollToClosestRow('departure', 'saidasTableContainer', cabecalhosSaidas);
+}, 800);
+
+    // Inicialização (mantém igual)
+setupVirtualScrollWithHighlight('chegadasTableContainer', chegadasTbody, 'arrival', cabecalhosChegadas);
+setupVirtualScrollWithHighlight('saidasTableContainer', saidasTbody, 'departure', cabecalhosSaidas);
   </script>
 </body>
 </html>

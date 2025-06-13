@@ -173,6 +173,7 @@ app.get("/atualizar", async (req, res) => {
 // API para ler chegadas do cache
 app.get("/api/chegadas", async (req, res) => {
   if (cachedArrivals.length > 0) {
+    console.info(`Returning ${cachedArrivals.length} cached arrivals.`);
     res.json(cachedArrivals);
   } else {
     res.json([]); // Ou { message: "Nenhuma chegada em cache no momento." }
@@ -182,6 +183,7 @@ app.get("/api/chegadas", async (req, res) => {
 // API para ler saídas do cache
 app.get("/api/saidas", async (req, res) => {
   if (cachedDepartures.length > 0) {
+    console.info(`Returning ${cachedDepartures.length} cached departures.`);
     res.json(cachedDepartures);
   } else {
     res.json([]); // Ou { message: "Nenhuma saída em cache no momento." }
@@ -273,8 +275,54 @@ function sendDataToAllSseClients(data) {
   }
 }
 
+// --- AJUSTE DE JANELA DE TEMPO E BROADCAST ---
+function filterCurrentWindow(data, type) {
+  const key = type === 'arrival' ? 'arrival.scheduledtime' : 'departure.scheduledtime';
+  const now = new Date();
+  return data.filter(item => {
+    const d = new Date(item[key]);
+    if (isNaN(d.getTime())) return false;
+    // Só do mesmo dia
+    if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth() || d.getDate() !== now.getDate()) return false;
+    const diffH = (d.getTime() - now.getTime()) / (1000 * 60 * 60);
+    return diffH >= -1 && diffH <= 1;
+  });
+}
+
+async function monitorAndBroadcastChanges() {
+  setInterval(async () => {
+    try {
+      if (!currentAuthToken) {
+        currentAuthToken = await performLoginAndGetToken();
+      }
+      const movimentos = await obterMovimentos(currentAuthToken);
+      if (!movimentos) return;
+      // Filtra só janela de 1h antes/depois do dia atual
+      const newArrivals = filterCurrentWindow(movimentos.arrivals || [], 'arrival');
+      const newDepartures = filterCurrentWindow(movimentos.departures || [], 'departure');
+      let changed = false;
+      if (JSON.stringify(newArrivals) !== JSON.stringify(cachedArrivals)) {
+        console.info(`Detected changes in arrivals: ${newArrivals.length} new arrivals.`);
+        cachedArrivals = newArrivals;
+        changed = true;
+      }
+      if (JSON.stringify(newDepartures) !== JSON.stringify(cachedDepartures)) {
+        console.info(`Detected changes in departures: ${newDepartures.length} new departures.`);
+        cachedDepartures = newDepartures;
+        changed = true;
+      }
+      if (changed) {
+        sendDataToAllSseClients({ type: 'update', arrivals: cachedArrivals, departures: cachedDepartures });
+      }
+    } catch (err) {
+      console.error('Erro ao monitorar e atualizar dados para SSE:', err);
+    }
+  }, 5000);
+}
+
 // Inicia servidor e tenta inicializar o cache
 app.listen(PORT, async () => {
   console.info(`Server started on port ${PORT}`);
   await initializeDataAndCache();
+  monitorAndBroadcastChanges();
 });

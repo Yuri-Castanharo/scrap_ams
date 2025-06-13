@@ -34,12 +34,13 @@ function exportToCSV(data, fileName) {
 }
 
 async function obterMovimentos(token) {
+
   const hoje = new Date();
   const ontem = new Date(hoje);
   ontem.setDate(hoje.getDate() - 1);
   const formatarData = data => `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
   const dataAtual = formatarData(hoje);
-  const dataAnterior = formatarData(ontem);
+  const dataAnterior = formatarData(hoje);
 
   const url = `https://amsweb.gru.com.br:44302/api/movements?airportCode=GRU&from=${dataAnterior}T00:00:00&to=${dataAtual}T23:59:59&tracker=true`;
 
@@ -59,16 +60,6 @@ async function obterMovimentos(token) {
     const flattened = dados.map(item => flattenObject(item));
     const chegadas = flattened.filter(item => Object.keys(item).some(k => k.startsWith('arrival.')));
     const saidas = flattened.filter(item => Object.keys(item).some(k => k.startsWith('departure.')));
-
-    try {
-      exportToCSV(chegadas, 'chegadas.csv');
-      exportToCSV(saidas, 'saidas.csv');
-    } catch (csvError) {
-      // Logged in exportToCSV, re-throw if critical, or handle if partial success is okay
-      console.warn(`Aviso: Falha na exportação de um ou mais CSVs. Detalhes: ${csvError.message}`);
-      // Depending on requirements, might not want to throw 'err' from axios if CSV simply fails
-      // For now, we prioritize returning data if axios succeeded.
-    }
 
     const duracao = Math.round((Date.now() - inicio) / 1000);
     console.info(`⏱  Movimentos obtidos e processados em ${duracao} segundos.`);
