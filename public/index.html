@@ -66,14 +66,28 @@
         th:nth-child(4), td:nth-child(4) { min-width: 120px; max-width: 200px; width: 160px; } /* Coluna ID VOO mais larga */
     th:nth-child(11), td:nth-child(11) { min-width: 120px; max-width: 200px; width: 160px; } /* Coluna ID VOO mais larga */
 
-</style>
+.blink-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #ff2d2d;
+  vertical-align: middle;
+  animation: blinkDot 1s linear infinite;
+}
+@keyframes blinkDot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+  </style>
 </head>
 <body class="bg-dark text-light">
-    <div id="spinnerOverlay" class="spinner-overlay" style="display:none;">
+    <!-- <div id="spinnerOverlay" class="spinner-overlay" style="display:none;">
       <div class="spinner-border" role="status">
         <span class="visually-hidden">Carregando...</span>
       </div>
-    </div>
+    </div> -->
 
   <div class="top-bar bg-primary text-white py-3 mb-3 shadow">
     <h1 class="display-5 fw-bold mb-0">Chegadas e Saídas - Aeroporto de Guarulhos (GRU)</h1>
@@ -229,6 +243,8 @@ const cabecalhosChegadas = {
     let chegadasScrollIndex = 0;
     let saidasScrollIndex = 0;
 
+    // --- FIXA O CABEÇALHO (thead) SEMPRE ---
+    // Garante que o thead seja sempre renderizado e sticky
     function generateTableHeaders(tableId, headerMappings) {
       const table = document.getElementById(tableId);
       if (!table) {
@@ -239,13 +255,16 @@ const cabecalhosChegadas = {
       if (!thead) {
         thead = table.createTHead();
       }
-      thead.innerHTML = ''; // Clear existing headers
-
+      thead.innerHTML = '';
       const tr = thead.insertRow();
       for (const key in headerMappings) {
         if (headerMappings.hasOwnProperty(key)) {
           const th = document.createElement('th');
           th.textContent = headerMappings[key];
+          th.style.position = 'sticky';
+          th.style.top = '0';
+          th.style.background = '#e9ecef';
+          th.style.zIndex = '2';
           tr.appendChild(th);
         }
       }
@@ -612,19 +631,23 @@ function getDisplayData(type) {
 // Atualiza e destaca linhas alteradas, mantendo ordenação
 function updateAndHighlight(type, newData, headerMappings, tbody, containerId) {
   const keyId = type === 'arrival' ? 'arrival.flightid' : 'departure.flightid';
-  const keySched = type === 'arrival' ? 'arrival.scheduledtime' : 'departure.scheduledtime';
-  // Atualiza dados globais
   if (type === 'arrival') fullChegadasData = newData.slice();
   else fullSaidasData = newData.slice();
-  // Detecta alterados
   const prevData = type === 'arrival' ? displayedArrivals : displayedDepartures;
   const changed = [];
   newData.forEach(row => {
-    const id = row[keyId] + '_' + row[keySched];
-    const old = prevData.find(r => (r[keyId] + '_' + r[keySched]) === id);
+    const id = row[keyId];
+    const old = prevData.find(r => r[keyId] === id);
     if (old && isRowDifferent(row, old)) changed.push({ row, id });
   });
-  // Pisca apenas, sem mover
+  // Loga os IDs e suas posições na tabela filtrada
+  if (changed.length > 0) {
+    const filtered = getFilteredSortedData(type);
+    changed.forEach(({ id }) => {
+      const idx = filtered.findIndex(r => r[keyId] === id);
+      console.log(`[${type}] Atualização: ID do voo ${id} na linha ${idx + 1}`);
+    });
+  }
   changed.forEach(({ id }) => {
     highlightedRows[type][id] = true;
     if (highlightedTimeouts[type][id]) clearTimeout(highlightedTimeouts[type][id]);
@@ -632,28 +655,14 @@ function updateAndHighlight(type, newData, headerMappings, tbody, containerId) {
       highlightedRows[type][id] = false;
       highlightedTimeouts[type][id] = null;
       renderVirtualRows(type, getFilteredSortedData(type), headerMappings, tbody, containerId, highlightedRows[type]);
-    }, 30000);
+    }, 10000);
   });
-  // Atualiza exibidos
   if (type === 'arrival') displayedArrivals = newData.slice();
   else displayedDepartures = newData.slice();
-  // Renderiza
   renderVirtualRows(type, getFilteredSortedData(type), headerMappings, tbody, containerId, highlightedRows[type]);
 }
 
-// Atualiza virtual scroll para usar getFilteredSortedData
-function setupVirtualScrollWithHighlight(containerId, tbody, type, headerMappings) {
-  const container = document.getElementById(containerId);
-  function onScroll() {
-    renderVirtualRows(type, getFilteredSortedData(type), headerMappings, tbody, containerId, highlightedRows[type]);
-  }
-  container.onscroll = null;
-  container.addEventListener('scroll', onScroll);
-  window.addEventListener('resize', onScroll);
-  onScroll();
-}
-
-// --- AJUSTE FRONTEND: JANELA DE 1 HORA E LINHA MAIS PRÓXIMA DO AGORA ---
+// --- CORRIGE FILTRO DE 1 HORA E VIRTUAL SCROLL ---
 function isWithin1HourWindow(dateStr) {
   if (!dateStr) return false;
   const d = new Date(dateStr);
@@ -668,7 +677,6 @@ function getFilteredSortedData(type) {
   const data = type === 'arrival' ? fullChegadasData : fullSaidasData;
   const key = type === 'arrival' ? 'arrival.scheduledtime' : 'departure.scheduledtime';
   let filtered = data.filter(item => isWithin1HourWindow(item[key]));
-  // Ordena por horário programado
   filtered = filtered.slice().sort((a, b) => {
     const aTime = a[key] || '';
     const bTime = b[key] || '';
@@ -677,39 +685,86 @@ function getFilteredSortedData(type) {
   return filtered;
 }
 
-// Função para scrollar até a linha mais próxima do horário atual
-function scrollToClosestRow(type, containerId, headerMappings) {
-  const data = getFilteredSortedData(type);
-  const key = type === 'arrival' ? 'arrival.scheduledtime' : 'departure.scheduledtime';
-  const now = new Date();
-  let minDiff = Infinity;
-  let closestIdx = 0;
-  data.forEach((item, idx) => {
-    const d = new Date(item[key]);
-    if (isNaN(d.getTime())) return;
-    const diff = Math.abs(d.getTime() - now.getTime());
-    if (diff < minDiff) {
-      minDiff = diff;
-      closestIdx = idx;
-    }
-  });
-  // Scrolla para a linha
+// --- VIRTUAL SCROLL COM CABEÇALHO FIXO E PISCAGEM ---
+function renderVirtualRows(type, data, headerMappings, tbody, containerId, highlighted) {
   const container = document.getElementById(containerId);
-  if (container) {
-    const rowHeight = 38;
-    container.scrollTop = Math.max(0, (closestIdx - 2) * rowHeight);
+  const rowHeight = 38;
+  const buffer = 8;
+  const totalRows = data.length;
+  const visibleRows = Math.ceil(container.clientHeight / rowHeight);
+  const scrollTop = container.scrollTop;
+  const start = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
+  const end = Math.min(totalRows, start + visibleRows + 2 * buffer);
+  tbody.innerHTML = '';
+  if (start > 0) {
+    const spacer = document.createElement('tr');
+    spacer.style.height = (start * rowHeight) + 'px';
+    tbody.appendChild(spacer);
+  }
+  const dateCols = Object.keys(headerMappings).filter(k => k.match(/time|date|hora|hr|atd|ata|etd|eta|fim|inicio|start|end|onchock|offchock|calco|po|saida|chegada|embarque|solicitacao|request|claim|baggage|bagagem|restituicao|taxi|stand|posicao|posicao|terminal|landed/i));
+  const idVooKey = Object.keys(headerMappings)[0];
+  for (let i = start; i < end; i++) {
+    const item = data[i];
+    if (!item) continue;
+    const row = tbody.insertRow();
+    row.className = 'virtual-row';
+    const keyId = type === 'arrival' ? 'arrival.flightid' : 'departure.flightid';
+    const id = item[keyId];
+    if (highlighted && highlighted[id]) row.classList.add('tr-blink');
+    let colIdx = 0;
+    for (const dataKey in headerMappings) {
+      if (headerMappings.hasOwnProperty(dataKey)) {
+        const cell = row.insertCell();
+        let cellValue = item[dataKey];
+        if (dateCols.includes(dataKey)) {
+          cellValue = formatDateTimeBR(cellValue);
+        }
+        // Se for a coluna do ID do voo, adiciona a bolinha se destacado
+        if (colIdx === 0) {
+          cell.innerHTML = cellValue !== undefined && cellValue !== null ? cellValue : '';
+          if (highlighted && highlighted[id]) {
+            const dot = document.createElement('span');
+            dot.className = 'blink-dot';
+            cell.appendChild(dot);
+          }
+        } else {
+          cell.textContent = cellValue !== undefined && cellValue !== null ? cellValue : '';
+        }
+        colIdx++;
+      }
+    }
+  }
+  if (end < totalRows) {
+    const spacer = document.createElement('tr');
+    spacer.style.height = ((totalRows - end) * rowHeight) + 'px';
+    tbody.appendChild(spacer);
   }
 }
 
-// Após renderização inicial, scrolla para o mais próximo
-setTimeout(() => {
+// --- GERA CABEÇALHO SEMPRE QUE RENDERIZA ---
+document.addEventListener('DOMContentLoaded', function() {
+  generateTableHeaders('chegadasTable', cabecalhosChegadas);
+  generateTableHeaders('saidasTable', cabecalhosSaidas);
+  document.getElementById('chegadasWrapper').style.display = 'flex';
+  document.getElementById('saidasWrapper').style.display = 'none';
+  openTab(null, 'chegadasTab');
+  setupVirtualScrollWithHighlight('chegadasTableContainer', chegadasTbody, 'arrival', cabecalhosChegadas);
+  setupVirtualScrollWithHighlight('saidasTableContainer', saidasTbody, 'departure', cabecalhosSaidas);
+  setTimeout(() => {
+    scrollToClosestRow('arrival', 'chegadasTableContainer', cabecalhosChegadas);
+    scrollToClosestRow('departure', 'saidasTableContainer', cabecalhosSaidas);
+  }, 800);
+});
+
+// --- SCROLL AUTOMÁTICO A CADA MINUTO ---
+setInterval(() => {
   scrollToClosestRow('arrival', 'chegadasTableContainer', cabecalhosChegadas);
   scrollToClosestRow('departure', 'saidasTableContainer', cabecalhosSaidas);
-}, 800);
+}, 60000);
 
-    // Inicialização (mantém igual)
-setupVirtualScrollWithHighlight('chegadasTableContainer', chegadasTbody, 'arrival', cabecalhosChegadas);
-setupVirtualScrollWithHighlight('saidasTableContainer', saidasTbody, 'departure', cabecalhosSaidas);
-  </script>
+// --- DEFINE AS FUNÇÕES NO ESCOPO GLOBAL ---
+window.setupVirtualScrollWithHighlight = setupVirtualScrollWithHighlight;
+window.scrollToClosestRow = scrollToClosestRow;
+    </script>
 </body>
 </html>
