@@ -16,11 +16,21 @@ function flattenObject(obj, parent = '', res = {}) {
 }
 
 function exportToCSV(data, fileName) {
-  if (data.length === 0) return console.log(`Nenhum dado para exportar em ${fileName}`);
-  const parser = new Parser();
-  const csv = parser.parse(data);
-  fs.writeFileSync(fileName, csv, 'utf8');
-  console.log(`✅ CSV salvo: ${fileName}`);
+  if (data.length === 0) {
+    console.info(`Nenhum dado para exportar em ${fileName}`);
+    return;
+  }
+  try {
+    const parser = new Parser();
+    const csv = parser.parse(data);
+    fs.writeFileSync(fileName, csv, 'utf8');
+    console.info(`✅ CSV salvo: ${fileName}`);
+  } catch (err) {
+    console.error(`Falha ao processar ou salvar CSV: ${fileName}`, err);
+    // Decide if this should stop the whole obterMovimentos or just be a warning
+    // For now, re-throwing to indicate the operation wasn't fully successful.
+    throw new Error(`Falha ao exportar CSV ${fileName}: ${err.message}`);
+  }
 }
 
 async function obterMovimentos(token) {
@@ -50,13 +60,23 @@ async function obterMovimentos(token) {
     const chegadas = flattened.filter(item => Object.keys(item).some(k => k.startsWith('arrival.')));
     const saidas = flattened.filter(item => Object.keys(item).some(k => k.startsWith('departure.')));
 
-    exportToCSV(chegadas, 'chegadas.csv');
-    exportToCSV(saidas, 'saidas.csv');
+    try {
+      exportToCSV(chegadas, 'chegadas.csv');
+      exportToCSV(saidas, 'saidas.csv');
+    } catch (csvError) {
+      // Logged in exportToCSV, re-throw if critical, or handle if partial success is okay
+      console.warn(`Aviso: Falha na exportação de um ou mais CSVs. Detalhes: ${csvError.message}`);
+      // Depending on requirements, might not want to throw 'err' from axios if CSV simply fails
+      // For now, we prioritize returning data if axios succeeded.
+    }
 
     const duracao = Math.round((Date.now() - inicio) / 1000);
-    return `⏱ Execução concluída em ${duracao} segundos.`;
+    console.info(`⏱  Movimentos obtidos e processados em ${duracao} segundos.`);
+    return { arrivals: chegadas, departures: saidas };
   } catch (err) {
-    throw new Error(`Erro ao obter dados: ${err.message}`);
+    // This primarily catches errors from axios.get or flattenObject
+    console.error(`Falha crítica em obterMovimentos: ${err.message}`, err.isAxiosError ? err.toJSON() : err);
+    throw err;
   }
 }
 
