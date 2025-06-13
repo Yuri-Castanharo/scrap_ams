@@ -4,20 +4,77 @@
   <meta charset="UTF-8">
   <title>Chegadas e Saídas - GRU (Real-time)</title>
   <style>
-    body { font-family: sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }
-    .top-bar { background-color: #333; color: white; text-align: center; padding: 10px 0; margin-bottom: 15px; }
+    /* Add or modify these styles */
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; /* Prevent body scroll, manage scrolling in table containers */ }
+    body { font-family: sans-serif; background-color: #f4f4f4; display: flex; flex-direction: column; }
+    .top-bar { background-color: #333; color: white; text-align: center; padding: 10px 0; /* Removed margin-bottom to allow flex to control spacing */ }
     .top-bar h1 { margin: 0; font-size: 1.8em; }
-    .tab-container { overflow: hidden; border-bottom: 1px solid #ccc; background-color: #fff; margin: 0 10px 10px 10px; }
+    .tab-container { overflow: hidden; border-bottom: 1px solid #ccc; background-color: #fff; margin: 10px 10px 0 10px; /* Adjusted margins */ flex-shrink: 0; } /* Prevent tabs from shrinking */
     .tab-button { background-color: #f1f1f1; float: left; border: none; outline: none; cursor: pointer; padding: 14px 16px; transition: 0.3s; font-size: 17px; }
     .tab-button:hover { background-color: #ddd; }
     .tab-button.active { background-color: #ccc; }
-    .tab-content { display: none; padding: 6px 12px; border-top: none; animation: fadeEffect 0.5s; background-color: #fff; margin: 0 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+
+    .tab-content-wrapper { /* New wrapper for tab content and pagination */
+      flex-grow: 1; /* Allows this wrapper to fill available vertical space */
+      display: flex;
+      flex-direction: column;
+      margin: 0 10px 10px 10px; /* Consistent margin */
+      background-color: #fff;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      overflow: hidden; /* Important for managing internal scrolling */
+    }
+
+    .tab-content {
+      display: none;
+      padding: 6px 12px;
+      border-top: none;
+      animation: fadeEffect 0.5s;
+      flex-grow: 1; /* Allows tab-content to fill space within wrapper */
+      overflow-y: auto; /* Vertical scroll for content within the tab */
+      display: flex; /* Added to make table container flex */
+      flex-direction: column; /* Stack h2 and table vertically */
+    }
+
     @keyframes fadeEffect { from {opacity: 0;} to {opacity: 1;} }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { background-color: #e9e9e9; }
-    #loadingIndicator { text-align: center; padding: 20px; font-size: 18px; display: block; margin: 20px; }
-    h2 { margin-top: 0; padding-top: 5px; color: #333; }
+
+    .table-container { /* New wrapper for the table itself to handle scrolling */
+      overflow-x: auto; /* Horizontal scroll for the table */
+      overflow-y: auto; /* Vertical scroll for the table body primarily */
+      flex-grow: 1; /* Allows table container to fill space */
+      margin-top: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      /* margin-top: 10px; Removed, as .table-container handles spacing */
+    }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; white-space: nowrap; /* Prevent text wrapping in cells */ }
+    th { background-color: #e9e9e9; position: sticky; top: 0; z-index: 1; /* Sticky headers */}
+
+    #loadingIndicator { text-align: center; padding: 20px; font-size: 18px; display: block; margin: 20px; flex-shrink: 0; }
+    h2 { margin-top: 0; padding-top: 5px; color: #333; flex-shrink: 0; }
+
+    .pagination-controls {
+      padding: 10px;
+      text-align: center;
+      border-top: 1px solid #eee;
+      flex-shrink: 0; /* Prevent pagination from shrinking */
+    }
+    .pagination-controls button {
+      padding: 8px 16px;
+      margin: 0 5px;
+      cursor: pointer;
+      border: 1px solid #ddd;
+      background-color: #f9f9f9;
+    }
+    .pagination-controls button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+    .pagination-controls span {
+      margin: 0 10px;
+    }
   </style>
 </head>
 <body>
@@ -33,39 +90,131 @@
 
   <div id="loadingIndicator">Carregando dados...</div>
 
-  <div id="chegadasTab" class="tab-content" style="display:block;">
-    <h2>Chegadas</h2>
-    <table id="chegadasTable">
-      <thead>
-        <tr><th>Data/Hora Prev</th><th>Voo</th><th>Origem</th><th>Status</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+  <div class="tab-content-wrapper" id="chegadasWrapper" style="display:flex;"> <!-- New wrapper, initially visible -->
+    <div id="chegadasTab" class="tab-content" style="display:flex;"> <!-- Ensure inner tab is also flex -->
+      <h2>Chegadas</h2>
+      <div class="table-container"> <!-- New table container -->
+        <table id="chegadasTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="pagination-controls" id="chegadasPagination">
+      <button onclick="prevPage('chegadas')">Anterior</button>
+      <span id="chegadasPageInfo">Página 1 de 1</span>
+      <button onclick="nextPage('chegadas')">Próxima</button>
+    </div>
   </div>
 
-  <div id="saidasTab" class="tab-content">
-    <h2>Saídas</h2>
-    <table id="saidasTable">
-      <thead>
-        <tr><th>Data/Hora Prev</th><th>Voo</th><th>Destino</th><th>Status</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+  <div class="tab-content-wrapper" id="saidasWrapper" style="display:none;"> <!-- Initially hidden -->
+    <div id="saidasTab" class="tab-content" style="display:flex;"> <!-- Ensure inner tab is also flex -->
+      <h2>Saídas</h2>
+      <div class="table-container">
+        <table id="saidasTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="pagination-controls" id="saidasPagination">
+      <button onclick="prevPage('saidas')">Anterior</button>
+      <span id="saidasPageInfo">Página 1 de 1</span>
+      <button onclick="nextPage('saidas')">Próxima</button>
+    </div>
   </div>
 
   <script>
-    function openTab(evt, tabName) {
-      var i, tabcontent, tabbuttons;
-      tabcontent = document.getElementsByClassName("tab-content");
-      for (i = 0; i < tabcontent.length; i++) {
-        tabcontent[i].style.display = "none";
+    const cabecalhosChegadas = {
+      'arrival.scheduledTime': 'Data/Hora Prev.',
+      'arrival.estimatedTime': 'Data/Hora Est.',
+      'flight.flightNumber': 'Voo',
+      'arrival.origin.name': 'Origem',
+      'arrival.origin.icao': 'Origem (ICAO)',
+      'arrival.status.name': 'Status',
+      'airline.name': 'Companhia Aérea',
+      'arrival.terminal': 'Terminal',
+      'arrival.gate': 'Portão'
+    };
+
+    const cabecalhosSaidas = {
+      'departure.scheduledTime': 'Data/Hora Prev.',
+      'departure.estimatedTime': 'Data/Hora Est.',
+      'flight.flightNumber': 'Voo',
+      'departure.destination.name': 'Destino',
+      'departure.destination.icao': 'Destino (ICAO)',
+      'departure.status.name': 'Status',
+      'airline.name': 'Companhia Aérea',
+      'departure.terminal': 'Terminal',
+      'departure.gate': 'Portão'
+    };
+
+    const itemsPerPage = 25; // Or any other number you prefer
+    let chegadasCurrentPage = 1;
+    let saidasCurrentPage = 1;
+    let fullChegadasData = []; // To store all arrival data
+    let fullSaidasData = [];   // To store all departure data
+
+    function generateTableHeaders(tableId, headerMappings) {
+      const table = document.getElementById(tableId);
+      if (!table) {
+        console.error('Table not found for ID:', tableId);
+        return;
       }
+      let thead = table.getElementsByTagName('thead')[0];
+      if (!thead) {
+        thead = table.createTHead();
+      }
+      thead.innerHTML = ''; // Clear existing headers
+
+      const tr = thead.insertRow();
+      for (const key in headerMappings) {
+        if (headerMappings.hasOwnProperty(key)) {
+          const th = document.createElement('th');
+          th.textContent = headerMappings[key];
+          tr.appendChild(th);
+        }
+      }
+    }
+
+    function openTab(evt, tabName) {
+      var i, tabWrappers, tabbuttons;
+      // Get all elements with class="tab-content-wrapper" and hide them
+      tabWrappers = document.getElementsByClassName("tab-content-wrapper");
+      for (i = 0; i < tabWrappers.length; i++) {
+        tabWrappers[i].style.display = "none";
+      }
+
+      // Get all elements with class="tab-button" and remove the class "active"
       tabbuttons = document.getElementsByClassName("tab-button");
       for (i = 0; i < tabbuttons.length; i++) {
         tabbuttons[i].className = tabbuttons[i].className.replace(" active", "");
       }
-      document.getElementById(tabName).style.display = "block";
-      if (evt) evt.currentTarget.className += " active";
+
+      // Show the current tab's wrapper, and add an "active" class to the button that opened the tab
+      const wrapperId = tabName.replace('Tab', 'Wrapper');
+      document.getElementById(wrapperId).style.display = "flex"; // Use flex as it's a flex container
+
+      // Ensure the inner tab-content (which is a direct child and also a flex container) is displayed correctly.
+      // This might be redundant if the parent controls visibility entirely, but good for clarity.
+      document.getElementById(tabName).style.display = "flex";
+
+
+      if (evt && evt.currentTarget) { // Ensure evt and evt.currentTarget are not null
+        evt.currentTarget.className += " active";
+      } else if (!evt) { // Handle initial load call where evt might be null
+        // For initial load, find the button corresponding to tabName and set it active
+        // This assumes tabName for initial load is like 'chegadasTab'
+        let initialButton;
+        if (tabName === 'chegadasTab') {
+            initialButton = document.querySelector('.tab-button[onclick*="\'chegadasTab\'"]');
+        } else if (tabName === 'saidasTab') {
+            initialButton = document.querySelector('.tab-button[onclick*="\'saidasTab\'"]');
+        }
+        if (initialButton && !initialButton.className.includes(' active')) {
+            initialButton.className += ' active';
+        }
+      }
     }
 
     // Initialize SSE and table update logic
@@ -73,59 +222,135 @@
     const chegadasTbody = document.getElementById('chegadasTable').getElementsByTagName('tbody')[0];
     const saidasTbody = document.getElementById('saidasTable').getElementsByTagName('tbody')[0];
 
-    function updateTable(tbody, items, type) {
-        const existingRowIds = new Set();
-        for (let row of tbody.rows) {
-            if(row.dataset.id) existingRowIds.add(row.dataset.id);
+    // Modified updateTable to handle pagination
+    // The 'items' parameter will now be the FULL dataset for that type (arrivals/departures)
+    function updateTable(tbody, fullItems, type, headerMappings) {
+        let currentPage;
+        if (type === 'arrival') {
+            fullChegadasData = fullItems; // Store full dataset
+            currentPage = chegadasCurrentPage;
+        } else {
+            fullSaidasData = fullItems;   // Store full dataset
+            currentPage = saidasCurrentPage;
         }
-        const currentItemIds = new Set();
 
-        if (!items) return; // Guard against null or undefined items
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedItems = fullItems.slice(startIndex, endIndex);
 
-        items.forEach(item => {
-            // Define keys based on type (arrival/departure) for critical fields
-            const flightNoKey = 'flight.flightNumber'; // Primary key for flight number
-            const flightIcaoKey = 'flight.icao';       // Fallback ICAO for flight number
+        // Clear existing tbody content before adding new page's rows
+        tbody.innerHTML = '';
 
-            const timeScheduledKey = type === 'arrival' ? 'arrival.scheduledTime' : 'departure.scheduledTime';
-            const timeEstimatedKey = type === 'arrival' ? 'arrival.estimatedTime' : 'departure.estimatedTime';
+        // --- Beginning of adapted row creation logic ---
+        if (!paginatedItems || !headerMappings) return;
 
-            const locationNameKey = type === 'arrival' ? 'arrival.origin.name' : 'departure.destination.name';
-            const locationIcaoKey = type === 'arrival' ? 'arrival.origin.icao' : 'departure.destination.icao';
+        paginatedItems.forEach(item => {
+            // Using common keys, assuming server provides them or they are in headerMappings
+            // For rowId, it's good to have a stable unique identifier.
+            // If 'flight.flightNumber' and scheduledTime are not unique enough,
+            // the server should provide a truly unique ID for each flight record.
+            const flightIdKey = 'flight.flightNumber';
+            const scheduledTimeKey = (type === 'arrival' ? 'arrival.scheduledTime' : 'departure.scheduledTime');
 
-            const statusKey = type === 'arrival' ? 'arrival.status.name' : 'departure.status.name';
+            const flightId = item[flightIdKey] || 'N/A_Flight_' + Math.random().toString(36).substring(2, 11);
+            const scheduledTime = item[scheduledTimeKey] || String(Date.now() + Math.random());
+            const rowId = flightId + '_' + scheduledTime;
 
-            // Construct rowId
-            const flightNo = item[flightNoKey] || item[flightIcaoKey] || 'N/A_Flight';
-            const time = item[timeEstimatedKey] || item[timeScheduledKey] || String(Date.now()); // Fallback to current time for uniqueness if time is missing
-            const rowId = flightNo + '_' + (item[timeScheduledKey] || String(Date.now())); // Use scheduled time for a more stable ID if possible
+            let row = tbody.insertRow();
+            row.dataset.id = rowId;
 
-            currentItemIds.add(rowId);
-
-            let row = tbody.querySelector(`[data-id="${rowId}"]`);
-            if (!row) { // Row doesn't exist, insert new
-                row = tbody.insertRow();
-                row.dataset.id = rowId;
-            }
-            row.innerHTML = ''; // Clear existing cells to repopulate
-
-            const displayTime = item[timeEstimatedKey] || item[timeScheduledKey] || 'N/A';
-            const displayLocation = item[locationNameKey] || item[locationIcaoKey] || 'N/A';
-            const displayStatus = item[statusKey] || 'N/A';
-
-            row.insertCell().textContent = displayTime;
-            row.insertCell().textContent = flightNo;
-            row.insertCell().textContent = displayLocation;
-            row.insertCell().textContent = displayStatus;
-        });
-
-        // Remove old rows not in current data
-        existingRowIds.forEach(id => {
-            if (!currentItemIds.has(id)) {
-                const rowToRemove = tbody.querySelector(`[data-id="${id}"]`);
-                if (rowToRemove) tbody.removeChild(rowToRemove);
+            for (const dataKey in headerMappings) {
+                if (headerMappings.hasOwnProperty(dataKey)) {
+                    const cell = row.insertCell();
+                    const cellValue = item[dataKey];
+                    cell.textContent = cellValue !== undefined && cellValue !== null ? cellValue : 'N/A';
+                }
             }
         });
+        // --- End of adapted row creation logic ---
+
+        updatePaginationControls(type); // New function to update buttons and page info
+    }
+
+    function updatePaginationControls(type) {
+        let currentPage;
+        let totalItems;
+        let pageInfoElemId;
+        let prevButton;
+        let nextButton;
+
+        if (type === 'arrival') {
+            currentPage = chegadasCurrentPage;
+            totalItems = fullChegadasData.length;
+            pageInfoElemId = 'chegadasPageInfo';
+            prevButton = document.querySelector('#chegadasPagination button[onclick*="prevPage"]');
+            nextButton = document.querySelector('#chegadasPagination button[onclick*="nextPage"]');
+        } else { // departure
+            currentPage = saidasCurrentPage;
+            totalItems = fullSaidasData.length;
+            pageInfoElemId = 'saidasPageInfo';
+            prevButton = document.querySelector('#saidasPagination button[onclick*="prevPage"]');
+            nextButton = document.querySelector('#saidasPagination button[onclick*="nextPage"]');
+        }
+
+        let totalPages = Math.ceil(totalItems / itemsPerPage);
+        totalPages = totalPages > 0 ? totalPages : 1; // Ensure totalPages is at least 1
+
+        document.getElementById(pageInfoElemId).textContent = `Página ${currentPage} de ${totalPages}`;
+
+        if (prevButton) prevButton.disabled = currentPage === 1;
+        if (nextButton) nextButton.disabled = currentPage === totalPages || totalItems === 0;
+    }
+
+    function nextPage(type) {
+        let totalItems;
+        let tbody;
+        let headerMap;
+        let currentFullData;
+
+        if (type === 'chegadas') {
+            totalItems = fullChegadasData.length;
+            if (chegadasCurrentPage < Math.ceil(totalItems / itemsPerPage)) {
+                chegadasCurrentPage++;
+                tbody = chegadasTbody;
+                headerMap = cabecalhosChegadas;
+                currentFullData = fullChegadasData;
+                updateTable(tbody, currentFullData, 'arrival', headerMap);
+            }
+        } else if (type === 'saidas') {
+            totalItems = fullSaidasData.length;
+            if (saidasCurrentPage < Math.ceil(totalItems / itemsPerPage)) {
+                saidasCurrentPage++;
+                tbody = saidasTbody;
+                headerMap = cabecalhosSaidas;
+                currentFullData = fullSaidasData;
+                updateTable(tbody, currentFullData, 'departure', headerMap);
+            }
+        }
+    }
+
+    function prevPage(type) {
+        let tbody;
+        let headerMap;
+        let currentFullData;
+
+        if (type === 'chegadas') {
+            if (chegadasCurrentPage > 1) {
+                chegadasCurrentPage--;
+                tbody = chegadasTbody;
+                headerMap = cabecalhosChegadas;
+                currentFullData = fullChegadasData;
+                updateTable(tbody, currentFullData, 'arrival', headerMap);
+            }
+        } else if (type === 'saidas') {
+            if (saidasCurrentPage > 1) {
+                saidasCurrentPage--;
+                tbody = saidasTbody;
+                headerMap = cabecalhosSaidas;
+                currentFullData = fullSaidasData;
+                updateTable(tbody, currentFullData, 'departure', headerMap);
+            }
+        }
     }
 
     const evtSource = new EventSource('/api/data-stream');
@@ -136,12 +361,8 @@
         eventData = JSON.parse(event.data);
       } catch (err) {
         console.error('Error parsing SSE data:', err, 'Raw data:', event.data);
-        // Optionally, display a user-friendly error message on the page
-        // e.g., loadingIndicator.textContent = 'Error receiving updates. Please refresh.';
-        return; // Stop processing this malformed message
+        return;
       }
-
-      console.log('SSE Message:', eventData); // For debugging field names
 
       if (loadingIndicator.style.display !== 'none') {
           loadingIndicator.style.display = 'none';
@@ -149,10 +370,12 @@
 
       if (eventData.type === 'initialLoad' || eventData.type === 'update') {
         if (eventData.arrivals) {
-          updateTable(chegadasTbody, eventData.arrivals, 'arrival');
+          chegadasCurrentPage = 1; // Reset to page 1 on new data
+          updateTable(chegadasTbody, eventData.arrivals, 'arrival', cabecalhosChegadas);
         }
         if (eventData.departures) {
-          updateTable(saidasTbody, eventData.departures, 'departure');
+          saidasCurrentPage = 1; // Reset to page 1 on new data
+          updateTable(saidasTbody, eventData.departures, 'departure', cabecalhosSaidas);
         }
       }
     };
@@ -162,13 +385,30 @@
       if (loadingIndicator.style.display !== 'none') {
           loadingIndicator.textContent = 'Erro ao conectar ao servidor de atualizações.';
       }
-      // Consider adding a visual indicator on the page for connection errors.
     };
 
-    // Ensure the first tab is active on load if no button was clicked yet.
-    // The first button already has 'active' class and the first tab has display:block.
-    // If you want to be absolutely sure: openTab(null, 'chegadasTab'); but it might cause a flicker.
-    // The current HTML/CSS setup should handle the default active tab correctly.
+    // Set the default tab to be visible
+    // Make sure chegadasWrapper is flex and saidasWrapper is none
+    document.addEventListener('DOMContentLoaded', function() {
+        // Generate headers for both tables
+        generateTableHeaders('chegadasTable', cabecalhosChegadas);
+        generateTableHeaders('saidasTable', cabecalhosSaidas);
+
+        // Ensure correct display states for wrappers on load
+        document.getElementById('chegadasWrapper').style.display = 'flex';
+        document.getElementById('saidasWrapper').style.display = 'none';
+
+        // Call openTab for the default tab to ensure button state and tab content visibility are correct
+        // Pass null for event as it's a programmatic call to prevent errors,
+        // and to correctly set the active button if needed.
+        // The 'active' class is already on the Chegadas button in HTML,
+        // so this call mainly ensures the correct tab content wrapper is displayed.
+        openTab(null, 'chegadasTab');
+
+        // Initialize pagination display for both tables
+        updatePaginationControls('arrival');
+        updatePaginationControls('departure');
+    });
 
   </script>
 </body>
