@@ -6,7 +6,7 @@ const csv = require("csv-parser");
 const path = require("path");
 
 const app = express();
-const PORT = 3000;
+const PORT = 3001;
 
 // In-memory cache
 let cachedArrivals = [];
@@ -21,7 +21,6 @@ async function performLoginAndGetToken() {
   const urlLogin = "https://amsweb.gru.com.br/legacy/#/";
   const usuario = "ORBITAL";
   const senha = "Gru@123";
-  let browser;
   console.info("Attempting to perform login and get token via Puppeteer...");
   let browser;
   try {
@@ -40,7 +39,11 @@ async function performLoginAndGetToken() {
     console.info("Puppeteer: Typing username and password...");
     await page.type("#username", usuario, { delay: 100 });
     await page.type("#password", senha, { delay: 100 });
-    await page.click("#login-btn");
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'networkidle0' }),
+          await page.click("#login-btn")
+
+    ]);
 
     let authToken = null;
     await new Promise((resolve, reject) => {
